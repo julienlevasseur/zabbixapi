@@ -3,6 +3,7 @@ require 'json'
 
 class ZabbixApi
   class Client
+    # @param (see ZabbixApi::Client#initialize)
     # @return [Hash]
     attr_reader :options
 
@@ -34,6 +35,13 @@ class ZabbixApi
     # Initializes a new Client object
     #
     # @param options [Hash]
+    # @option opts [String] :url The url of zabbixapi(example: 'http://localhost/zabbix/api_jsonrpc.php')
+    # @option opts [String] :user
+    # @option opts [String] :password
+    # @option opts [String] :http_user A user for basic auth.(optional)
+    # @option opts [String] :http_password A password for basic auth.(optional)
+    # @option opts [Integer] :timeout Set timeout for requests in seconds.(default: 60)
+    #
     # @return [ZabbixApi::Client]
     def initialize(options = {})
       @options = options
@@ -86,6 +94,7 @@ class ZabbixApi
         http.verify_mode = OpenSSL::SSL::VERIFY_NONE
       end
 
+      http.open_timeout = timeout
       http.read_timeout = timeout
 
       request = Net::HTTP::Post.new(uri.request_uri)
@@ -105,8 +114,17 @@ class ZabbixApi
     def _request(body)
       puts "[DEBUG] Send request: #{body}" if @options[:debug]
       result = JSON.parse(http_request(body))
-      raise ApiError.new("Server answer API error\n #{JSON.pretty_unparse(result['error'])}\n on request:\n #{JSON.pretty_unparse(JSON.parse(body))}", result) if result['error']
+      raise ApiError.new("Server answer API error\n #{JSON.pretty_unparse(result['error'])}\n on request:\n #{pretty_body(body)}", result) if result['error']
       result['result']
+    end
+
+    def pretty_body(body)
+      parsed_body = JSON.parse(body)
+
+      # If password is in body hide it
+      parsed_body['params']['password'] = '***' if parsed_body['params'].is_a?(Hash) && parsed_body['params'].key?('password')
+
+      JSON.pretty_unparse(parsed_body)
     end
 
     # Execute Zabbix API requests and return response
